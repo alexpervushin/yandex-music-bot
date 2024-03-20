@@ -11,8 +11,13 @@ from aiogram.types import URLInputFile
 from aiogram.utils.media_group import MediaGroupBuilder
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import json
+import csv
 
+with open("example.csv", "r", encoding="utf-8", newline='') as csvfile:
+    reader = csv.DictReader(csvfile)
+    payloads = {row["text"]: row["info"] for row in reader}
 
+    
 TOKEN = ""
 
 dp = Dispatcher()
@@ -36,12 +41,25 @@ async def echo_music_handler(message: types.Message) -> None:
         # Disable overembed
         'overembed': 'false',
     }
-
-    async with aiohttp.ClientSession() as session:
-        # Make request to Yandex Music API
-        async with session.post('https://music.yandex.ru/handlers/music-search.jsx', params=payload) as resp:
-            # Parse response as JSON
-            data = await resp.json()
+    if message.text not in payloads:
+        async with aiohttp.ClientSession() as session:
+            # Make request to Yandex Music API
+            async with session.post('https://music.yandex.ru/handlers/music-search.jsx', params=payload) as resp:
+                # Parse response as JSON
+                data = await resp.json()
+                payloads[message.text] = data
+                csvfile = open("example.csv", "w+", encoding="utf-8",newline='')
+                writer = csv.writer(csvfile)
+                writer.writerow(["text","info"])
+                for text in payloads:
+                    writer.writerow([text,payloads[text]])
+                csvfile.close()
+                csvfile = open("example.csv", "r",encoding="utf-8", newline='')
+    else:
+        if type(payloads[message.text]) is not dict:
+            data = eval(payloads[message.text])
+        else:
+            data = payloads[message.text]
 
     top_tracks = data["tracks"]["items"][:5]
 
@@ -97,8 +115,8 @@ async def echo_music_handler(message: types.Message) -> None:
         ))
 
     await message.answer_media_group(
-        media=album_builder.build(),
-    )
+            media=album_builder.build(),
+        )
     await message.answer("Выберите трек", reply_markup=buttons_builder.as_markup())
 
 
