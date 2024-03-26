@@ -7,17 +7,13 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
 import aiohttp
-from aiogram.types import URLInputFile
+from aiogram.types import URLInputFile, FSInputFile
 from aiogram.utils.media_group import MediaGroupBuilder
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-import json
-import csv
+import yt_dlp
+from pymongo import MongoClient
 
-with open("example.csv", "r", encoding="utf-8", newline='') as csvfile:
-    reader = csv.DictReader(csvfile)
-    payloads = {row["text"]: row["info"] for row in reader}
 
-    
 TOKEN = ""
 
 dp = Dispatcher()
@@ -26,9 +22,38 @@ dp = Dispatcher()
 async def command_start_handler(message: Message) -> None:
     await message.answer(f"Hello, {hbold(message.from_user.full_name)}!")
 
+
+client = MongoClient("localhost", 27017)
+db = client["music"]
+queries = db["queries"]
+tracks = db["tracks"]
+
+
+ydl_opts = {
+    "format": "bestaudio/best",
+    "postprocessors": [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }
+    ],
+    "default_search": "ytsearch",
+    "noplaylist": True,
+    "quiet": True,
+}
+
+
 @dp.message()
 async def echo_music_handler(message: types.Message) -> None:
-    """Get top 5 tracks from Yandex Music API and send them as a message."""
+    """Get top 5 tracks from Yandex Music API and send them as a message.
+
+    The function fetches the data from Yandex Music API and stores it in the database.
+    Then it extracts the necessary data from the response, stores it in the 'tracks'
+    collection and sends it to the user as a media group with inline buttons.
+
+    The query is stored in the database to reduce the load on the Yandex Music API.
+    """
     payload = {
         # Search query
         'text': message.text,
@@ -41,25 +66,22 @@ async def echo_music_handler(message: types.Message) -> None:
         # Disable overembed
         'overembed': 'false',
     }
-    if message.text not in payloads:
+
+    # Check if the query is already in the database
+    query_data = queries.find_one({'query': message.text})
+    if query_data is not None:
+        # If the query is in the database, use the stored data
+        data = query_data['data']
+    else:
+        # If the query is not in the database, fetch the data and store it
         async with aiohttp.ClientSession() as session:
             # Make request to Yandex Music API
             async with session.post('https://music.yandex.ru/handlers/music-search.jsx', params=payload) as resp:
                 # Parse response as JSON
                 data = await resp.json()
-                payloads[message.text] = data
-                csvfile = open("example.csv", "w+", encoding="utf-8",newline='')
-                writer = csv.writer(csvfile)
-                writer.writerow(["text","info"])
-                for text in payloads:
-                    writer.writerow([text,payloads[text]])
-                csvfile.close()
-                csvfile = open("example.csv", "r",encoding="utf-8", newline='')
-    else:
-        if type(payloads[message.text]) is not dict:
-            data = eval(payloads[message.text])
-        else:
-            data = payloads[message.text]
+
+        # Store the query and the data in the 'queries' collection
+        queries.insert_one({'query': message.text, 'data': data})
 
     top_tracks = data["tracks"]["items"][:5]
 
@@ -76,6 +98,10 @@ async def echo_music_handler(message: types.Message) -> None:
         }
         for track in top_tracks
     ]
+
+    # Store the track data in the 'tracks' collection
+    for track in tracks_info:
+        tracks.update_one({'id': track['id']}, {'$set': track}, upsert=True)
 
     caption = "\n".join(
         # Message with tracks list
@@ -102,35 +128,49 @@ async def echo_music_handler(message: types.Message) -> None:
             media=URLInputFile(cover_url),
         )
 
-        # Use Genius API to get lyrics
-        # song = genius.search_song(title=track["title"], artist=', '.join(track["artists"]))
-        # if song is not None:
-        #     track.update({"Lyrics": song.lyrics})
-
         buttons_builder.add(types.InlineKeyboardButton(
             # Button text
             text=str(index+1),
             # Callback data
-            callback_data="nothing"
+            callback_data=str(track["id"])
         ))
 
     await message.answer_media_group(
-            media=album_builder.build(),
-        )
-    await message.answer("Выберите трек", reply_markup=buttons_builder.as_markup())
+        media=album_builder.build(),
+    )
+
+    await message.answer(
+        "Выберите трек",
+        reply_markup=buttons_builder.as_markup()
+    )
 
 
-# @dp.callback_query()
-# async def send_random_value(callback: types.CallbackQuery):
-#     data = json.loads(callback.data)
-#     title = data["title"]
-#     artists = data["artists"]
-#     await callback.message.answer(f"Вы выбрали песню {', '.join(artists)} от {title}")
+@dp.callback_query()
+async def send_track(callback: types.CallbackQuery) -> None:
+    """Send track to user by its ID"""
+    track_id = int(callback.data)
+    track = tracks.find_one({'id': track_id})
+    if track:
+        search_query = f"{track['title']} {', '.join(track['artists'])}"
+        ydl_opts.update({'outtmpl': str(track_id)})
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extract info and download the track
+                ydl.extract_info(search_query, download=True)
+        except yt_dlp.DownloadError:
+            await callback.message.answer("The track could not be downloaded.")
+            return
+
+        track_file = FSInputFile(str(track_id) + '.mp3', filename=search_query)
+        
+        await callback.message.answer_audio(track_file)
+    else:
+        # If the track is not found, notify the user
+        await callback.message.answer("The track data could not be found.")
 
 
 
-
-async def main() -> None:
+async def main():
     bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
     await dp.start_polling(bot)
 
