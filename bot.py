@@ -14,6 +14,9 @@ from pymongo import MongoClient
 from lyrics_sources import azlyrics, genius, google
 from exceptions import lyrics_not_found
 from config_reader import token, address, mongodb_server, mongodb_port
+import os
+
+bot_token = os.getenv("TELEGRAM_TOKEN", default=token)
 
 ydl_opts = {
     "format": "bestaudio/best",
@@ -264,7 +267,7 @@ async def run_bot():
     logging.basicConfig(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
     )
-    bot = Bot(token)
+    bot = Bot(bot_token)
     await dp.start_polling(bot)
 
 
