@@ -16,7 +16,7 @@ from exceptions import lyrics_not_found
 from config_reader import token, address, mongodb_server, mongodb_port
 import os
 
-bot_token = os.getenv("TELEGRAM_TOKEN", default=token)
+bot_token = "7098135360:AAHM92ZiAaU9F_fpNt0XjTkHh1MV_EWsssQ"
 
 ydl_opts = {
     "format": "bestaudio/best",
