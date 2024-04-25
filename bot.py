@@ -268,4 +268,4 @@ async def run_bot():
     await dp.start_polling(bot)
 
 
-asyncio.run(run_bot())
+
