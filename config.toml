@@ -1,0 +1,12 @@
+[telegram]
+token = "6778234804:AAGh0i4rSpr6DH1GiijzCmOgpBzlxEf8Hrs"
+
+[mongodb]
+server = "localhost"
+port = 27017
+
+[server]
+address = "http://127.0.0.1:8000/"
+enabled = false
+host = "127.0.0.1"
+port = 8000

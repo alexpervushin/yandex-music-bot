@@ -1,0 +1,9 @@
+requests
+aiohttp
+aiogram
+yt_dlp
+beautifulsoup4
+pymongo
+lyricsgenius
+toml
+flask
