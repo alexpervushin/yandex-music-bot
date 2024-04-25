@@ -1,6 +1,4 @@
-import asyncio
 import logging
-import sys
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -12,11 +10,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import yt_dlp
 from pymongo import MongoClient
 from lyrics_sources import azlyrics, genius, google
-from exceptions import lyrics_not_found
-from config_reader import token, address, mongodb_server, mongodb_port
+from config_reader import address, mongodb_server, mongodb_port, token
+import asyncio
 import os
 
-bot_token = "7098135360:AAHM92ZiAaU9F_fpNt0XjTkHh1MV_EWsssQ"
+
 
 ydl_opts = {
     "format": "bestaudio/best",
@@ -30,7 +28,7 @@ ydl_opts = {
     "default_search": "ytsearch",
     "noplaylist": True,
     "quiet": True,
-    'match_filter': yt_dlp.utils.match_filter_func("duration < 600"),
+    "match_filter": yt_dlp.utils.match_filter_func("duration < 600"),
 }
 
 
@@ -52,12 +50,12 @@ try:
 except:
     logging.error("Failed to initialize Genius API")
 
-        
+
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    await message.answer(f"Привет, {hbold(message.from_user.full_name)}! Этот бот представляет собой музыкальный сервис из комбинации различных площадок. Для поиска треков отправьте мне запрос, который содержит название трека и исполнителя. Выберите трек из списка и нажмите на соответствующую кнопку, чтобы получить его текст и mp3. Затем вы можете выбрать откуда получить текст песни, нажав на кнопки в новом сообщении. Начните с отправки запроса для поиска треков!")
-
-
+    await message.answer(
+        f"Привет, {hbold(message.from_user.full_name)}! Этот бот представляет собой музыкальный сервис из комбинации различных площадок. Для поиска треков отправьте мне запрос, который содержит название трека и исполнителя. Выберите трек из списка и нажмите на соответствующую кнопку, чтобы получить его текст и mp3. Затем вы можете выбрать откуда получить текст песни, нажав на кнопки в новом сообщении. Начните с отправки запроса для поиска треков!"
+    )
 
 
 @dp.message()
@@ -169,7 +167,6 @@ async def echo_music_handler(message: types.Message) -> None:
     await message.answer("Выберите трек", reply_markup=buttons_builder.as_markup())
 
 
-
 async def get_lyrics(title: str, artist: str) -> str:
     google_lyrics, azlyrics_lyrics, genius_lyrics = None, None, None
     try:
@@ -197,9 +194,14 @@ async def send_track(callback: types.CallbackQuery) -> None:
     try:
         for provider in ["google", "genius", "azlyrics"]:
             if callback.data.startswith(provider):
-                track_id = int(callback.data[len(provider):])
-                lyrics = tracks.find_one({"id": track_id}).get(f"{provider}_lyrics", "No lyrics found")
-                await callback.message.edit_text(lyrics + f"\n\n{address}track/{track_id}?provider={provider}", reply_markup=callback.message.reply_markup)
+                track_id = int(callback.data[len(provider) :])
+                lyrics = tracks.find_one({"id": track_id}).get(
+                    f"{provider}_lyrics", "No lyrics found"
+                )
+                await callback.message.edit_text(
+                    lyrics + f"\n\n{address}track/{track_id}?provider={provider}",
+                    reply_markup=callback.message.reply_markup,
+                )
                 return
     except Exception as error:
         logging.error("Lyrics could not be retrieved: %s", error)
@@ -209,21 +211,34 @@ async def send_track(callback: types.CallbackQuery) -> None:
     except ValueError:
         logging.error("Invalid track ID: %s", callback.data)
         return
-        
+
     track = tracks.find_one({"id": track_id})
     title = track["title"]
     artists = ", ".join(track["artists"])
     audio_file_id = track.get("audio_file_id", None)
     logging.info("Getting lyrics for track %s", track_id)
-    
+
     try:
         buttons_builder = InlineKeyboardBuilder()
-        google_lyrics, azlyrics_lyrics, genius_lyrics = await get_lyrics(title=title, artist=artists)
+        google_lyrics, azlyrics_lyrics, genius_lyrics = await get_lyrics(
+            title=title, artist=artists
+        )
         tracks.update_one(
-            {"id": track_id}, {"$set": {"google_lyrics": google_lyrics, "azlyrics_lyrics": azlyrics_lyrics, "genius_lyrics": genius_lyrics}}
+            {"id": track_id},
+            {
+                "$set": {
+                    "google_lyrics": google_lyrics,
+                    "azlyrics_lyrics": azlyrics_lyrics,
+                    "genius_lyrics": genius_lyrics,
+                }
+            },
         )
 
-        for provider in [("google", google_lyrics), ("azlyrics", azlyrics_lyrics), ("genius", genius_lyrics)]:
+        for provider in [
+            ("google", google_lyrics),
+            ("azlyrics", azlyrics_lyrics),
+            ("genius", genius_lyrics),
+        ]:
             if provider[1] is not None:
                 buttons_builder.add(
                     types.InlineKeyboardButton(
@@ -233,8 +248,11 @@ async def send_track(callback: types.CallbackQuery) -> None:
                         callback_data=provider[0] + str(track_id),
                     )
                 )
-        await callback.message.answer("Выберите площадку для текста песни", reply_markup=buttons_builder.as_markup())
-        
+        await callback.message.answer(
+            "Выберите площадку для текста песни",
+            reply_markup=buttons_builder.as_markup(),
+        )
+
     except Exception as error:
         logging.error("Lyrics could not be retrieved: %s", error)
         await callback.message.answer("Текст не найден")
@@ -242,7 +260,9 @@ async def send_track(callback: types.CallbackQuery) -> None:
     if audio_file_id is None:
         search_query = f"{track['title']} {', '.join(track['artists'])}"
         ydl_opts.update({"outtmpl": f"/static/{str(track_id)}"})
-        logging.info("Downloading track %s with search_query %s", track_id, search_query)
+        logging.info(
+            "Downloading track %s with search_query %s", track_id, search_query
+        )
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # Extract info and download the track
@@ -265,10 +285,10 @@ async def send_track(callback: types.CallbackQuery) -> None:
 
 async def run_bot():
     logging.basicConfig(
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
     )
-    bot = Bot(bot_token)
+    bot = Bot(token)
     await dp.start_polling(bot)
 
-
-
+asyncio.run(run_bot())

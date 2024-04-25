@@ -1,12 +1,12 @@
 from bot import run_bot
 from flask_site import run_site
-import threading
 import asyncio
 
 from config_reader import server_enabled
 
 from bot import run_bot
 from flask_site import run_site
+
 
 async def main():
     loop = asyncio.get_event_loop()
@@ -20,6 +20,7 @@ async def main():
     tasks.append(bot)
 
     await asyncio.gather(*tasks)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

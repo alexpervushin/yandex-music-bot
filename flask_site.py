@@ -9,12 +9,13 @@ db = client["music"]
 queries = db["queries"]
 tracks = db["tracks"]
 
-@app.route('/track/<id>')
+
+@app.route("/track/<id>")
 async def track(id):
-    track = tracks.find_one({'id': int(id)})
-    provider = request.args.get('provider', 'google')
-    lyrics = track.get(f'{provider}_lyrics', 'Lyrics not found').replace('\n', '<br>')
-    audio_file_url = url_for('static', filename=f'{id}.mp3')
+    track = tracks.find_one({"id": int(id)})
+    provider = request.args.get("provider", "google")
+    lyrics = track.get(f"{provider}_lyrics", "Текст песни не найден").replace("\n", "<br>")
+    audio_file_url = url_for("static", filename=f"{id}.mp3")
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -29,5 +30,5 @@ async def track(id):
     """
     return render_template_string(html)
 
-def run_site():
-    app.run(host=host, port=port)
+
+app.run(host=host, port=port)

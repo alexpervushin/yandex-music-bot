@@ -1,12 +1,12 @@
 [telegram]
-token = "6778234804:AAGh0i4rSpr6DH1GiijzCmOgpBzlxEf8Hrs"
+token = "6778234804:AAFhrIGz4Jk4wOntOkXX_mH2Ek3iS4mT_e0"
 
 [mongodb]
 server = "localhost"
 port = 27017
 
 [server]
-address = "https://yandex-music-bot-production.up.railway.app"
+address = "http://127.0.0.1:8000/"
 enabled = true
 host = "0.0.0.0"
 port = 8000

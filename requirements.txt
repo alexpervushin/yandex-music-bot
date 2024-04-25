@@ -7,3 +7,4 @@ pymongo
 lyricsgenius
 toml
 flask
+flask[async]
