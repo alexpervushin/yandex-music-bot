@@ -28,7 +28,6 @@ ydl_opts = {
     "default_search": "ytsearch",
     "noplaylist": True,
     "quiet": True,
-    "match_filter": yt_dlp.utils.match_filter_func("duration < 600"),
 }
 
 
@@ -259,7 +258,7 @@ async def send_track(callback: types.CallbackQuery) -> None:
 
     if audio_file_id is None:
         search_query = f"{track['title']} {', '.join(track['artists'])}"
-        ydl_opts.update({"outtmpl": f"/static/{str(track_id)}"})
+        ydl_opts.update({"outtmpl": f"static/{str(track_id)}"})
         logging.info(
             "Downloading track %s with search_query %s", track_id, search_query
         )
@@ -272,7 +271,7 @@ async def send_track(callback: types.CallbackQuery) -> None:
             await callback.message.answer("Трек не удалось скачать")
             return
 
-        track_file = FSInputFile(str(track_id) + ".mp3", filename=search_query)
+        track_file = FSInputFile(f"/static/" + str(track_id) + ".mp3", filename=search_query)
 
         media = await callback.message.answer_audio(track_file)
         audio_file_id = media.audio.file_id
