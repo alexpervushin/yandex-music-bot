@@ -27,5 +27,6 @@ mongod.exe --dbpath "папка_базы_данных"
 Теперь вы можете запустить бота и сервер следующими командами:
 
 python bot.py
+
 python flask_site.py
 
